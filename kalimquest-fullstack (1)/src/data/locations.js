@@ -6,7 +6,7 @@ export const locations = [
   { id:'fruit-garden', title:'Fruit Garden', arabic:'حَدِيقَةُ الْفَوَاكِهِ', subtitle:'Kebun Buah', emoji:'🍎', color:'peach', intro:'Ayo kenali buah-buahan dalam Bahasa Arab!', ...H, words:[
     w('تُفَّاحٌ','tuffāḥun','Apel','🍎'), w('مَوْزٌ','mawzun','Pisang','🍌'), w('بُرْتُقَالٌ','burtuqālun','Jeruk','🍊'),
     w('فَرَاوِلَةٌ','farāwilatun','Stroberi','🍓',{g:'f'}), w('عِنَبٌ','‘inabun','Anggur','🍇'), w('بِطِّيخٌ','biṭṭīkhun','Semangka','🍉'),
-    w('مَانْجَا','mānjā','Mangga','🥭',{g:'f'}), w('أَنَانَاسٌ','ananāsun','Nanas','🍍'), w('لَيْمُونٌ','laymūnun','Lemon','🍋'), w('خَوْخٌ','khawkhun','Persik','🍑')] },
+    w('مَانْجَا','mānjā','Mangga','🥭',{g:'f'}), w('أَنَانَاسٌ','ananāsun','Nanas','🍍'), w('لَيْمُونٌ','laymūnun','Lemon','🍋'), w('طَمَاطِمٌ','thamaatim','Tomat','🍅')] },
   { id:'hobby-park', title:'Hobby', arabic:'هِوَايَتِي', subtitle:'Hobi', emoji:'🛝', color:'mint', intro:'Temukan kegiatan seru yang kamu sukai!', ...LIKE, words:[
     w('الْقِرَاءَةُ','alqirā’atu','Membaca','📚',{f:'الْقِرَاءَةَ'}), w('الْكِتَابَةُ','alkitābatu','Menulis','✍️',{f:'الْكِتَابَةَ'}),
     w('الرَّسْمُ','arrasmu','Menggambar','🎨',{f:'الرَّسْمَ'}), w('السِّبَاحَةُ','assibāḥatu','Berenang','🏊',{f:'السِّبَاحَةَ'}),
