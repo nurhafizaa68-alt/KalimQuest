@@ -12,6 +12,23 @@ function speakArabic(text) {
   window.speechSynthesis.speak(utterance);
 }
 
+const QN = 6, PASS = 4;
+const shuffle = a => [...a].sort(() => Math.random() - 0.5);
+function sentenceOf(loc, w) {
+  const tpl = w.g === 'f' && loc.tplF ? loc.tplF : loc.tpl;
+  return { ar: tpl.replace('{}', w.f || w.ar), id: w.t || loc.tr.replace('{}', w.id.toLowerCase()) };
+}
+function buildQuiz(loc) {
+  const types = ['meaning', 'picture', 'listen'];
+  return shuffle(loc.words).slice(0, QN).map((w, i) => {
+    const type = types[i % 3];
+    const opts = shuffle([w, ...shuffle(loc.words.filter(x => x !== w)).slice(0, 2)]);
+    if (type === 'picture') return { type, w, q:'Apa bahasa Arabnya gambar ini?', choices:opts.map(o => o.ar), answer:w.ar };
+    if (type === 'listen') return { type, w, q:'Dengarkan kata, lalu pilih artinya!', choices:opts.map(o => o.id), answer:w.id };
+    return { type, w, q:`Apa arti kata ${w.ar}؟`, choices:opts.map(o => o.id), answer:w.id };
+  });
+}
+
 function LoginScreen({ onLogin }) {
   const [mode, setMode] = useState('student');
   const [absen, setAbsen] = useState('');
@@ -134,6 +151,13 @@ function StudentWorld({ user, onLogout }) {
   const [stage, setStage] = useState('learn');
   const [choice, setChoice] = useState('');
   const [feedback, setFeedback] = useState('');
+  const [quiz, setQuiz] = useState([]);
+  const [qi, setQi] = useState(0);
+  const [picked, setPicked] = useState('');
+  const [score, setScore] = useState(0);
+  const [quizDone, setQuizDone] = useState(false);
+  const [gotStar, setGotStar] = useState(false);
+  const [si, setSi] = useState(0);
   const current = useMemo(() => locations.find(x => x.id === activeLocation), [activeLocation]);
 
   useEffect(() => {
@@ -157,30 +181,27 @@ function StudentWorld({ user, onLogout }) {
     if (error) setFeedback('Progres belum tersimpan. Periksa koneksi lalu coba lagi.');
     else setProfile(data);
   }
-  function openLocation(location) { setActiveLocation(location.id); setStage('learn'); setChoice(''); setFeedback(''); }
-  async function finishMission() {
-    if (!current) return;
-    const nextAttempts = quizAttempts + 1;
-    const correct = choice === current.answer;
-    const nextCorrect = quizCorrect + (correct ? 1 : 0);
-    if (!correct) {
-      setQuizAttempts(nextAttempts); setQuizCorrect(nextCorrect);
-      await save({completed, stars, correct:nextCorrect, attempts:nextAttempts});
-      setFeedback('Belum tepat. Coba dengarkan dan perhatikan kosakatanya lagi, ya!');
-      return;
-    }
-    const nextCompleted = completed.includes(current.id) ? completed : [...completed, current.id];
-    const nextStars = stars + (completed.includes(current.id) ? 0 : 1);
-    setCompleted(nextCompleted); setStars(nextStars); setQuizAttempts(nextAttempts); setQuizCorrect(nextCorrect);
+  function startQuiz() { setQuiz(buildQuiz(current)); setQi(0); setPicked(''); setScore(0); setQuizDone(false); setGotStar(false); setFeedback(''); }
+  function openLocation(location) { setActiveLocation(location.id); setStage('learn'); setQuiz([]); setQuizDone(false); setSi(0); setFeedback(''); }
+  function pick(c) { if (picked) return; setPicked(c); if (c === quiz[qi].answer) setScore(x => x + 1); }
+  async function nextQ() {
+    if (qi + 1 < quiz.length) { setQi(qi + 1); setPicked(''); return; }
+    const pass = score >= PASS;
+    const isNew = pass && !completed.includes(current.id);
+    const nextAttempts = quizAttempts + quiz.length;
+    const nextCorrect = quizCorrect + score;
+    const nextCompleted = isNew ? [...completed, current.id] : completed;
+    const nextStars = stars + (isNew ? 1 : 0);
+    setCompleted(nextCompleted); setStars(nextStars); setQuizAttempts(nextAttempts); setQuizCorrect(nextCorrect); setGotStar(isNew); setQuizDone(true);
     await save({completed:nextCompleted, stars:nextStars, correct:nextCorrect, attempts:nextAttempts});
-    setFeedback('Hebat! Misi berhasil. Kamu mendapat satu bintang! ⭐');
   }
+  const q = quiz[qi];
   if (current) return <main className="lesson-page"><header className="topbar"><button className="back-button" onClick={() => setActiveLocation(null)}><ArrowLeft size={18}/> Kembali ke peta</button><div className="mini-brand"><span>ك</span> KalimQuest</div><div className="star-pill"><Star size={17} fill="currentColor"/> {stars} bintang</div></header><section className="lesson-wrap">
     <div className={`lesson-hero ${current.color}`}><div><p className="eyebrow">LOKASI PETUALANGAN</p><h1>{current.emoji} {current.title}</h1><p>{current.intro}</p></div><div className="lesson-arabic" lang="ar" dir="rtl">{current.arabic}</div></div>
     <div className="stage-tabs"><button className={stage==='learn'?'selected':''} onClick={()=>{setStage('learn');setFeedback('');}}><BookOpen size={17}/> Belajar kata</button><button className={stage==='mission'?'selected':''} onClick={()=>{setStage('mission');setFeedback('');}}><Star size={17}/> Misi seru</button><button className={stage==='sentence'?'selected':''} onClick={()=>setStage('sentence')}><CircleHelp size={17}/> Kalimat ajaib</button></div>
     {stage==='learn' && <><div className="section-heading"><div><h2>Koleksi kosakata</h2><p>Lihat gambar, baca kata, lalu tekan tombol suara.</p></div><span className="count-chip">{current.words.length} kata</span></div><div className="word-grid">{current.words.map(w=><article className="word-card" key={w.ar}><div className="word-emoji">{w.emoji}</div><h3 lang="ar" dir="rtl">{w.ar}</h3><p className="latin">{w.latin}</p><p className="translation">{w.id}</p><button className="sound-button" onClick={()=>speakArabic(w.ar)}><Volume2 size={16}/> Dengarkan</button></article>)}</div><div className="lesson-bottom"><span>Tip: dengarkan dua kali supaya makin ingat.</span><button className="primary-button" onClick={()=>setStage('mission')}>Mulai misi <ArrowRight size={18}/></button></div></>}
-    {stage==='mission' && <section className="mission-card"><div className="mission-icon">🧩</div><p className="eyebrow">MISI KECIL, BINTANG BESAR!</p><h2>{current.question}</h2><button className="listen-prompt" onClick={()=>speakArabic(current.words.find(w=>w.id===current.answer)?.ar || current.answer)}><Headphones size={17}/> Dengarkan kata</button><div className="choice-grid">{current.choices.map(c=><button key={c} className={`choice-button ${choice===c?'chosen':''}`} onClick={()=>{setChoice(c);setFeedback('');}}>{c}</button>)}</div><button className="primary-button check-button" disabled={!choice} onClick={finishMission}><Check size={18}/> Periksa jawaban</button>{feedback && <div className={`feedback ${feedback.startsWith('Hebat')?'success':'retry'}`} role="status">{feedback}</div>}{feedback.startsWith('Hebat') && <button className="text-button" onClick={()=>{setStage('sentence');setFeedback('');}}>Lanjut ke kalimat ajaib <ArrowRight size={16}/></button>}</section>}
-    {stage==='sentence' && <section className="sentence-card"><div className="sentence-illustration">{current.emoji}</div><p className="eyebrow">KALIMAT AJAIB</p><h2 lang="ar" dir="rtl">{current.sentence}</h2><p className="sentence-translation">{current.translation}</p><button className="sound-button" onClick={()=>speakArabic(current.sentence)}><Volume2 size={16}/> Dengarkan kalimat</button><p className="sentence-tip">Coba ucapkan pelan-pelan, lalu ulangi sekali lagi.</p><button className="primary-button" onClick={()=>setActiveLocation(null)}>Kembali ke peta <Map size={17}/></button></section>}
+    {stage==='mission' && (quiz.length===0 ? <section className="mission-card"><div className="mission-icon">🧩</div><p className="eyebrow">MISI KECIL, BINTANG BESAR!</p><h2>Jawab {QN} pertanyaan seru!</h2><p className="sentence-tip">Jawab benar {PASS} soal atau lebih, kamu dapat bintang.</p><button className="primary-button" onClick={startQuiz}>Mulai misi <ArrowRight size={18}/></button></section> : quizDone ? <section className="mission-card"><div className="mission-icon">{score>=PASS?'🏆':'💪'}</div><h2>{score>=PASS?'Hebat!':'Ayo coba lagi!'}</h2><p className="sentence-translation">Skormu {score}/{quiz.length}{gotStar?' — kamu mendapat satu bintang! ⭐':''}</p>{feedback && <div className="feedback retry">{feedback}</div>}<button className="primary-button" onClick={startQuiz}>Main lagi</button>{score>=PASS && <div><button className="text-button" onClick={()=>{setStage('sentence');setFeedback('');}}>Lanjut ke kalimat ajaib <ArrowRight size={16}/></button></div>}</section> : <section className="mission-card"><p className="eyebrow">PERTANYAAN {qi+1}/{quiz.length}</p>{q.type==='picture' && <div className="mission-icon">{q.w.emoji}</div>}<h2>{q.q}</h2>{q.type==='listen' && <button className="listen-prompt" onClick={()=>speakArabic(q.w.ar)}><Headphones size={17}/> Dengarkan kata</button>}<div className="choice-grid">{q.choices.map(c=><button key={c} disabled={!!picked} lang={q.type==='picture'?'ar':undefined} dir={q.type==='picture'?'rtl':undefined} className={`choice-button ${q.type==='picture'?'ar':''} ${picked?(c===q.answer?'right':c===picked?'wrong':''):''}`} onClick={()=>pick(c)}>{c}</button>)}</div>{picked && <><div className={`feedback ${picked===q.answer?'success':'retry'}`} role="status">{picked===q.answer?'Benar! 🎉':`Belum tepat. Jawabannya: ${q.answer}`}</div><button className="primary-button check-button" onClick={nextQ}>{qi+1<quiz.length?'Lanjut':'Selesai'} <ArrowRight size={18}/></button></>}{feedback && <div className="feedback retry">{feedback}</div>}</section>)}
+    {stage==='sentence' && (()=>{const w=current.words[si];const s=sentenceOf(current,w);return <section className="sentence-card"><div className="sentence-illustration">{w.emoji}</div><p className="eyebrow">KALIMAT AJAIB {si+1}/{current.words.length}</p><h2 lang="ar" dir="rtl">{s.ar}</h2><p className="sentence-translation">{s.id}</p><button className="sound-button" onClick={()=>speakArabic(s.ar)}><Volume2 size={16}/> Dengarkan kalimat</button><p className="sentence-tip">Ucapkan pelan-pelan, lalu ulangi sekali lagi.</p><div className="sentence-nav"><button className="outline-button" disabled={si===0} onClick={()=>setSi(si-1)}><ArrowLeft size={16}/> Sebelumnya</button>{si<current.words.length-1 ? <button className="primary-button" onClick={()=>setSi(si+1)}>Berikutnya <ArrowRight size={16}/></button> : <button className="primary-button" onClick={()=>setActiveLocation(null)}>Kembali ke peta <Map size={17}/></button>}</div></section>})()}
   </section></main>;
 
   return <main className="world-page"><header className="topbar world-topbar"><div className="mini-brand"><span>ك</span> KalimQuest</div><div className="welcome">Ahlan wa sahlan, {profile?.display_name || `Petualang ${profile?.absen || user.user_metadata?.absen || ''}`}! 👋</div><div className="top-actions"><div className="star-pill"><Star size={17} fill="currentColor"/> {stars} bintang</div><button className="logout-button" onClick={onLogout}><DoorOpen size={18}/><span>Keluar</span></button></div></header>
